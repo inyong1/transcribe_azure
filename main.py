@@ -16,6 +16,17 @@ text_queue_for_gui = queue.Queue()
 text_queue_interim = queue.Queue()
 translated_text_queue = queue.Queue()
 
+# Tambahkan daftar kata yang ingin dikecualikan dan custom translasi
+# Kata-kata yang tidak akan diterjemahkan
+excluded_words = ["Azure", "Good morning"]
+# Daftar kata yang ingin dikecualikan dan custom translasi
+custom_translations = {
+    "hello": "salam",
+    "Hello": "salam",
+    "orange": "jeruk bali",
+    "Orange": "jeruk bali",
+}  # Kata-kata dengan arti khusus
+
 
 # Tambahkan flag global untuk menghentikan thread
 stop_flag = False
@@ -24,24 +35,59 @@ threads = []
 language_code = "en-US"  # Ganti ke "id-ID" kalau Bahasa Indonesia
 
 # Tambahkan konfigurasi Azure Speech SDK
-speech_key = os.getenv("AZURE_SPEECH_KEY")  # Pastikan key disimpan di environment variable
+# Pastikan key disimpan di environment variable
+speech_key = os.getenv("AZURE_SPEECH_KEY")
 service_region = "southeastasia"  # Ganti dengan region Azure Anda
+
+
+def exclude_words(sentence):
+    """Mengecualikan kata-kata tertentu dengan membungkusnya dalam tanda kurung."""
+    for word in excluded_words:
+        sentence = sentence.replace(word, "-".join(word))
+    return sentence
+
+
+def restore_excluded_words(translated_text):
+    """Mengembalikan kata-kata yang dikecualikan ke bentuk aslinya."""
+    for word in excluded_words:
+        translated_text = translated_text.replace("-".join(word), word)
+    return translated_text
+
+
+def mark_custom_words(sentence):
+    """Tandai kata-kata tertentu dengan placeholder sebelum translasi."""
+    for word in custom_translations.keys():
+        sentence = sentence.replace(word, "*".join(word))
+    return sentence
+
+
+def replace_marked_words(translated_text):
+    """Ganti placeholder dengan arti khusus setelah translasi."""
+    for word, replacement in custom_translations.items():
+        translated_text = translated_text.replace(
+            "*".join(word), replacement)
+    return translated_text
+
 
 def transcribe_from_microphone():
     """Merekam audio dari mikrofon dan mengirimkannya ke Azure Speech-to-Text."""
     try:
-        text_queue_for_gui.put("================= ▶️ started =====================")
-        text_queue_interim.put("================= ▶️ started =====================")
+        text_queue_for_gui.put(
+            "================= ▶️ started =====================")
+        text_queue_interim.put(
+            "================= ▶️ started =====================")
 
         # Konfigurasi Azure Speech SDK
-        speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
+        speech_config = speechsdk.SpeechConfig(
+            subscription=speech_key, region=service_region)
         speech_config.speech_recognition_language = language_code
 
         # Gunakan mikrofon sebagai input audio
         audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
 
         # Buat recognizer
-        speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        speech_recognizer = speechsdk.SpeechRecognizer(
+            speech_config=speech_config, audio_config=audio_config)
 
         def handle_final_result(evt):
             """Callback untuk hasil transkripsi final."""
@@ -194,7 +240,7 @@ def translator_thread():
     params = {
         'api-version': '3.0',
         'from': 'en-US',
-        'to': ['id','lzh'],
+        'to': ['id', 'lzh'],
     }
 
     headers = {
@@ -211,15 +257,28 @@ def translator_thread():
         if not text_queue.empty():
             sentence = text_queue.get()
             # You can pass more than one object in body.
-            body = [{'text': sentence}]
+            # Tandai kata-kata tertentu sebelum translasi
+
+            sentence = exclude_words(sentence)
+            sentence = mark_custom_words(sentence)
+
+            body = [
+                {'text': sentence},
+            ]
+
             request = requests.post(
                 endpoint, params=params, headers=headers, json=body)
             response = request.json()
-            #[{'translations': [{'text': 'Halo. Halo. Bagaimana keadaanmu?', 'to': 'id'}]}]
+            # [{'translations': [{'text': 'Halo. Halo. Bagaimana keadaanmu?', 'to': 'id'}]}]
             # Iterasi pada hasil JSON untuk mengambil teks translasi
             for translation in response:
                 for translated_item in translation.get('translations', []):
                     translated_text = translated_item.get('text', '')
+                    # Kembalikan kata-kata yang dikecualikan dan custom translasi
+                    print("before restore_excluded_words", translated_text)
+                    translated_text = restore_excluded_words(translated_text)
+                    print("after restore_excluded_words", translated_text)
+                    translated_text = replace_marked_words(translated_text)
                     translated_text_queue.put(translated_text)
                     print("🌍 [Translator] Translated:", translated_text)
             translated_text_queue.put(
