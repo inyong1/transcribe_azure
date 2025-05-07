@@ -8,6 +8,18 @@ import tkinter as tk
 from tkinter import scrolledtext
 import os
 
+# Tambahkan daftar kata yang ingin dikecualikan dan custom translasi
+# Kata-kata yang tidak akan diterjemahkan
+excluded_words = ["Good morning",]
+
+# Daftar kata yang ingin dikecualikan translasinya
+custom_translations = {
+    "hello": "salam",
+    "Hello": "Salam",
+    "orange": "jeruk bali",
+    "Orange": "Jeruk bali",
+}  # Kata-kata dengan arti khusus
+
 
 # === Setup Queues ===
 audio_queue = queue.Queue()
@@ -15,17 +27,6 @@ text_queue = queue.Queue()
 text_queue_for_gui = queue.Queue()
 text_queue_interim = queue.Queue()
 translated_text_queue = queue.Queue()
-
-# Tambahkan daftar kata yang ingin dikecualikan dan custom translasi
-# Kata-kata yang tidak akan diterjemahkan
-excluded_words = ["Azure", "Good morning"]
-# Daftar kata yang ingin dikecualikan dan custom translasi
-custom_translations = {
-    "hello": "salam",
-    "Hello": "salam",
-    "orange": "jeruk bali",
-    "Orange": "jeruk bali",
-}  # Kata-kata dengan arti khusus
 
 
 # Tambahkan flag global untuk menghentikan thread
